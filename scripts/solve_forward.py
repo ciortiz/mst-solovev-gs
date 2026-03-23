@@ -6,43 +6,95 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from mst_solovev.geometry import R_0, a 
-from mst_solovev.solovev import construct_psi
+from mst_solovev.solovev import (
+        construct_psi,
+        construct_equilibrium,
+        B_Z,
+        B_phi
+)
 
 
-C = -0.02  # T / m^2; Solovev constant for p
-psi_fn = construct_psi(C, R_0, a)
+A = 2.  # T; Solovev constant for FF'
+psi_fn = construct_psi(A, R_0, a)
+C, gamma, R_a, R_b = construct_equilibrium(A, R_0, a)
 
 
-### Define coordinate plane
-scale = 1.1  # padding scalar
-R_arr = np.linspace(R_0 - scale * a, R_0 + scale * a, 1000)
-Z_arr = np.linspace(-scale * a, scale * a, 1000)
-R, Z = np.meshgrid(R_arr, Z_arr)
+### Define relevant coordinates
+R_flux = np.linspace(R_0 - 1.1 * a, R_0 + 1.1 * a, 1000)
+Z_flux = np.linspace(-1.1 * a, 1.1 * a, 1000)
+R, Z = np.meshgrid(R_flux, Z_flux)
+
+R_arr = np.linspace(R_0 - a, R_0 + a, 1000)
+Z_midplane = np.zeros_like(R_arr)
 
 
-### Define landmarks
+### Quantities of merit + shell location 
 psi_val = psi_fn(R, Z)
-R_shell = np.linspace(R_0 - a, R_0 + a, 1000)
-Z_shell = np.sqrt(np.maximum(0., a**2 - (R_shell - R_0)**2))
+Z_shell = np.sqrt(np.maximum(0., a**2 - (R_arr - R_0)**2))
+
+B_Z_midplane = B_Z(R_arr, Z_midplane, C, A, gamma, R_a, R_b)
+B_phi_midplane = B_phi(R_arr, Z_midplane, C, A, gamma, R_a, R_b)
 
 
-### Plotting
-fig, ax = plt.subplots(figsize = (10, 8))
+### Plot 1: Psi contours
+fig1, ax1 = plt.subplots(figsize = (8, 8))
 
-flux_contours = ax.contourf(R, Z, psi_val, levels = 30)  # heatmap of contours
-ax.contour(R, Z, psi_val, levels = 20, linewidths = 0.7)  # flux surfaces
-ax.contour(R, Z, psi_val, levels = [0], colors = 'pink', linewidths = 2)  # psi=0 contour
+ax1.axhline(0., linestyle = '--', color = 'black', alpha = 0.3)
+ax1.axvline(R_0, linestyle = '--', color = 'black', alpha = 0.3)
 
-ax.plot(R_shell, Z_shell, color = 'grey', linewidth = 2)  # upper conductive shell
-ax.plot(R_shell, -Z_shell, color = 'grey', linewidth = 2)  # lower conductive shell
+psi_masked = np.ma.masked_where(psi_val > 0., psi_val)
+ax1.contour(
+        R, Z, psi_masked,
+        levels = 15,
+        colors = 'purple',
+        linewidths = 1,
+        linestyles = 'solid'
+)
+ax1.contour(  # psi=0 contour
+        R, Z, psi_val,
+        levels = [0],
+        colors = 'red',
+        linewidths = 1.5,
+        linestyles = 'solid'
+)
 
-ax.plot(R_0, 0, marker = 'o', color = 'black')  # cross-section geometric center
+ax1.plot(  # upper conductive shell
+         R_arr, Z_shell,
+         color = 'grey',
+         linewidth = 2
+)
+ax1.plot(  # lower conductive shell
+        R_arr, -Z_shell,
+        color = 'grey',
+        linewidth = 2
+)
 
-ax.set_xlabel(r'$R$ (m)')
-ax.set_ylabel(r'$Z$ (m)')
-ax.set_aspect('equal')
+ax1.plot(R_a, 0, marker = 'o', color = 'black')  # magnetic axis 
 
-fig.colorbar(flux_contours, ax = ax, label = r'$\Psi(R,Z)$')
+ax1.set_xlabel(r'$R$ (m)')
+ax1.set_ylabel(r'$Z$ (m)')
+ax1.set_aspect('equal')
 
+plt.tight_layout()
 #plt.savefig('forward_solution.pdf', dpi = 300)
+plt.show()
+
+
+### Plot 2: Midplane B-fields
+fig2, (ax2, ax3) = plt.subplots(1, 2, figsize = (10, 6))
+
+ax2.plot(R_arr, B_Z_midplane, color = 'blue', linewidth = 1.5)
+ax2.axhline(0., linestyle = 'solid', color = 'black', alpha = 0.3)
+ax2.set_xlabel(r'$R$ (m)')
+ax2.set_ylabel(r'$B_Z(R, Z=0)$ (T)')
+ax2.set_xlim(R_arr[0], R_arr[-1])
+
+ax3.plot(R_arr, B_phi_midplane, color = 'orange', linewidth = 1.5)
+ax3.axhline(0., linestyle = 'solid', color = 'black', alpha = 0.3)
+ax3.set_xlabel(r'$R$ (m)')
+ax3.set_ylabel(r'$B_{\phi}(R, Z=0)$ (T)')
+ax3.set_xlim(R_arr[0], R_arr[-1])
+
+plt.tight_layout()
+#plt.savefig('midplane_fields.pdf', dpi = 300)
 plt.show()
